@@ -51,7 +51,7 @@ inquirer.prompt(questions).then(answers => {
             },
             agent: proxyAgent("http://"+proxy)
         }).then((res) => {
-            if (res.body.client_id === "kimne78kx3ncx6brgo4mv6wki5h1ko") {
+            if (res.body.login) {
                 console.log('Token ' + token + ' is valid!');
                 fs.writeFileSync('valid.txt', res.body.login + ':' + res.body.user_id + ':' + token + '\r\n', { flag: 'a' });
             } else {
