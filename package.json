@@ -1,0 +1,20 @@
+{
+  "name": "twitch-oauth-checker",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "inquirer": "^8.0.0",
+    "inquirer-file-selector-prompt": "^1.1.0",
+    "needle": "^3.1.0",
+    "proxy-agent": "^5.0.0",
+    "random-useragent": "^0.5.0"
+  }
+}
