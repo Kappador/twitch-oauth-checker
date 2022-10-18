@@ -2,9 +2,13 @@ const inquirer = require('inquirer');
 inquirer.registerPrompt('file-tree-selection', require('inquirer-file-selector-prompt'));
 
 const fs = require('fs');
-const needle = require('needle');
-const proxyAgent = require('proxy-agent');
-const randomUserAgent = require('random-useragent');
+const { Worker } = require('worker_threads');
+
+function wait(ms) {
+    return new Promise(resolve => {
+        setTimeout(resolve, ms);
+    });
+}
 
 const questions = [
     {
@@ -26,40 +30,62 @@ const questions = [
         name: "delay",
         message: 'Choose delay between requests (ms) ',
         default: 1000
+    },
+    {
+        type: 'input',
+        name: "threads",
+        message: 'Choose how many threads you want to use ',
+        default: 8
     }
 ];
 
-inquirer.prompt(questions).then(answers => {
-    let tokens = fs.readFileSync(answers.tokens, 'utf-8').split('\r\n');
-    let proxies = fs.readFileSync(answers.proxies, 'utf-8').split('\r\n');
-    let delay = answers.delay;
+async function start() {
+    inquirer.prompt(questions).then(async answers => {
+        let tokens = fs.readFileSync(answers.tokens, 'utf-8').split('\r\n');
+        let proxies = fs.readFileSync(answers.proxies, 'utf-8').split('\r\n');
+        let delay = answers.delay;
+        let threads = answers.threads;
 
-    let i = 0;
-    let interval = setInterval(() => {
-        if (i >= tokens.length) {
-            clearInterval(interval);
-            return;
+        let checkedTokens = 0;
+
+        let runningThreads = 0;
+        while (checkedTokens < tokens.length) {
+            await wait(delay);
+            if (runningThreads >= threads)
+                continue;
+
+            let token = tokens.shift();
+
+            let worker = new Worker('./worker.js', {
+                workerData: {
+                    token: token,
+                    proxies: proxies
+                }
+            });
+
+            worker.on('exit', (code) => {
+                if (code == 1) {
+                    console.log(token + " is valid");
+                    fs.writeFileSync('valid.txt', token + '\r\n', { flag: 'a+' });
+                } else if (code == 0) {
+                    console.log(token + " is invalid");
+                    fs.writeFileSync('invalid.txt', token + '\r\n', { flag: 'a+' });
+                } else {
+                    console.log(token + " errored");
+                    fs.writeFileSync('errored.txt', token + '\r\n', { flag: 'a+' });
+                }
+                runningThreads--;
+            });
+
+            checkedTokens++;
+
+            if (checkedTokens >= tokens.length) {
+                console.log("Finished checking all tokens");
+                break;
+            }
         }
 
-        let token = tokens[i];
-        let proxy = proxies[Math.floor(Math.random() * proxies.length)];
+    });
+}
 
-        needle('get', 'https://id.twitch.tv/oauth2/validate', {
-            headers: {
-                'User-Agent': randomUserAgent.getRandom(),
-                'Authorization': "OAuth " + token
-            },
-            agent: proxyAgent("http://"+proxy)
-        }).then((res) => {
-            if (res.body.login) {
-                console.log('Token ' + token + ' is valid!');
-                fs.writeFileSync('valid.txt', res.body.login + ':' + res.body.user_id + ':' + token + '\r\n', { flag: 'a' });
-            } else {
-                console.log('Token ' + token + ' is invalid!');
-                fs.writeFileSync('error.txt', token + '\r\n', { flag: 'a' });
-            }
-        });
-
-        i++;
-    }, delay);
-});
+start();
